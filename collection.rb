@@ -1,14 +1,8 @@
-# Collection is an Indexable, sparse list of any value (Object), indexed by Fixnum.
-# Only items that exist in collection should be returned, non-existent items should generate an exception
-#   because nil would be an appropriate value to store at a specified index
-
-class Object
-  # Bake an index and next pointer into Objects for traversing a linked list
-  attr_accessor :index_value
-  attr_accessor :next_element
-end
+# Collection is an Indexable, sparsely-implemented singly linked list of any value (Object), indexed by Fixnum.
 
 class Collection
+  INDEXING_BASE = 0
+
   module Error
     class Standard < StandardError; end
     class NotFoundError < Standard
@@ -24,9 +18,7 @@ class Collection
     end
   end
 
-  INDEXING_BASE = 0
-
-  attr_accessor :length
+  attr_reader :length # Can not resize array length externally
 
   def initialize(size = 0)
     @head = nil
@@ -36,10 +28,10 @@ class Collection
   # represent array as a string
   def to_s
     str = '['
-    each do |element|
-      element_string = element.nil? ? 'nil' : "\"#{element}\""
+    each do |node|
+      node_string = node.nil? ? 'nil' : "#{node}"
       str += ', ' unless str == '['
-      str += element_string
+      str += node_string
     end
     str += ']'
 
@@ -50,12 +42,12 @@ class Collection
   def at(index)
     raise Error::InvalidIndexError if index < INDEXING_BASE or index > length - (1 - INDEXING_BASE)
 
-    element = @head
-    until element.nil?
-      if element.index_value == index
-        return element
+    node = @head
+    until node.nil?
+      if node.index == index
+        return node.value
       else
-        element = element.next_element
+        node = node.next
       end
     end
 
@@ -63,39 +55,32 @@ class Collection
   end
 
   # Store :value at :index
-  def store_at(index, value)
+  def store_at(value, index)
 
     raise Error::InvalidIndexError if index < INDEXING_BASE
 
-    element = @head
-    previous_element = nil
-    until element.nil?
-      if element.index_value == index
-        # replace existing element with this value, updating links
-        value.next_element = element.next_element
-        if previous_element.nil? # updating @head element
-          @head = value
-          @head.index_value = index
-        else
-          previous_element.next_element = value
-        end
+    node = @head
+    previous_node = nil
+    until node.nil?
+      if node.index == index
+        node.value = value
         return
       else
-        previous_element, element = element, element.next_element
+        previous_node, node = node, node.next
       end
     end
 
     append(value, index)
   end
 
-  # Implements :retrieve_at using brackets for the syntactical sugar
+  # Implements :retrieve_at using brackets for syntactical sugar
   def [](index)
     at(index)
   end
 
-  # Implements :store_at using brackets for the syntactical sugar
+  # Implements :store_at using brackets for syntactical sugar
   def []=(index, value)
-    store_at(index, value)
+    store_at(value, index)
   end
 
   # Append :value to the end of the collection, assigning it an index 1 greater than the max index
@@ -104,19 +89,22 @@ class Collection
     append(value)
   end
 
-  # Remove the last element of the collection and return it to the caller
+  # Remove the last node of the collection and return it to the caller
   def pop
-    element, @head = @head, element.next_element
+    node = @head
+    @head = @head.next
 
-    return element
+    return node.value
   end
 
+  # Sequentially iterate through all nodes
   def each
     INDEXING_BASE.upto(length - (1 - INDEXING_BASE)) do |index|
       yield at(index)
     end
   end
 
+  # Sequentially iterate through all node indicies
   def each_index
     INDEXING_BASE.upto(length - (1 - INDEXING_BASE)) do |index|
       yield index
@@ -124,46 +112,46 @@ class Collection
   end
 
   private
-    # Generic iterator for sequencing through elements
+    # Generic iterator for sequencing through nodes
     def iterate_sparse
-      element = @head
-      until element.nil?
-        yield element
-        element = element.next_element
+      node = @head
+      until node.nil?
+        yield node
+        node = node.next
       end
     end
 
-    # Iterate through the existing elements in the array collection
+    # Iterate through the existing nodes in the array collection
     def each_sparse
-      iterate_sparse do |element|
-        yield element
+      iterate_sparse do |node|
+        yield node
       end
     end
 
-    # Iterate through the existing elements in the array collection returning the index
+    # Iterate through the existing nodes in the array collection returning the index
     def each_index_sparse
-      iterate_sparse do |element|
-        yield element.index_value
+      iterate_sparse do |node|
+        yield node.index
       end
     end
 
   # Returns the number of items in the array
     def count
       len = 0
-      element = @head
-      until element.nil?
+      node = @head
+      until node.nil?
         len += 1
-        element = element.next_element
+        node = node.next
       end
 
       return len
     end
 
-  # Return the maximum index of the sparse array by sequencing through the elements
+  # Return the maximum index of the sparse array by sequencing through the nodes
     def find_max_index
-      return nil if @head.nil? or @head.index_value.nil?
+      return nil if @head.nil? or @head.index.nil?
 
-      max_i = @head.index_value
+      max_i = @head.index
       each_index_sparse do |index|
         max_i = index if index > max_i
       end
@@ -178,9 +166,9 @@ class Collection
         max_i = find_max_index
         index = max_i.nil? ? INDEXING_BASE : max_i + 1
       end
-      previous_head, @head = @head, value
-      @head.index_value = index
-      @head.next_element = previous_head
+      previous_head, @head = @head, Node.new(value)
+      @head.index = index
+      @head.next = previous_head
 
       @length = index + (1 - INDEXING_BASE) if index + (1 - INDEXING_BASE) > @length
 

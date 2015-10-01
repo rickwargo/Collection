@@ -15,7 +15,7 @@ describe Collection do
     it 'reads the value stored' do
       some_value = 'foo'
       index = Collection::INDEXING_BASE
-      collection.store_at(index, some_value)
+      collection.store_at(some_value, index)
       expect(collection.at(index)).to be(some_value)
     end
 
@@ -23,7 +23,7 @@ describe Collection do
       1.upto(5) do |n|
         some_value = 'foo #' + n.to_s
         index = n
-        collection.store_at(index, some_value)
+        collection.store_at(some_value, index)
         expect(collection.at(index)).to eq(some_value)
       end
     end
@@ -33,7 +33,7 @@ describe Collection do
         n = rand(1000000)
         some_value = 'foo #' + n.to_s
         index = n
-        collection.store_at(index, some_value)
+        collection.store_at(some_value, index)
         expect(collection.at(index)).to be(some_value)
       end
     end
@@ -44,7 +44,7 @@ describe Collection do
 
     it 'generates an error when the index is > length' do
       len = 10
-      collection.store_at(len, 'foo')
+      collection.store_at('foo', len)
       expect{collection.at(len + 1 + (1 - Collection::INDEXING_BASE))}.to raise_error(Collection::Error::InvalidIndexError)
     end
   end
@@ -53,7 +53,7 @@ describe Collection do
     it 'can read a value at a given index' do
       some_value = 'foo'
       index = 4
-      collection.store_at(index, some_value)
+      collection.store_at(some_value, index)
       expect(collection[index]).to be(some_value)
     end
 
@@ -72,6 +72,12 @@ describe Collection do
 
     it 'does not have a value at index ' + Collection::INDEXING_BASE.to_s do
       expect{collection.at(Collection::INDEXING_BASE)}.to raise_error(Collection::Error::InvalidIndexError)
+    end
+
+    it 'can create create an array with a specified length' do
+      len = 10
+      col = Collection.new(len)
+      expect(col.length).to eq(len)
     end
   end
 
@@ -103,16 +109,16 @@ describe Collection do
     it 'can push a value on the end of a sparse list' do
       index = 537
       some_value = 'foo'
-      collection.store_at(index, some_value)
-      expect(collection.push(some_value).index_value).to be(index + 1)
+      collection.store_at(some_value, index)
+      expect(collection.push(some_value).index).to be(index + 1)
     end
 
     it 'can override an existing value at the initial index' do
       index = Collection::INDEXING_BASE
       old_value = 'foo'
       new_value = 'bar'
-      collection.store_at(index, old_value)
-      collection.store_at(index, new_value)
+      collection.store_at(old_value, index)
+      collection.store_at(new_value, index)
       expect(collection.at(index)).to eq(new_value)
     end
 
@@ -123,16 +129,10 @@ describe Collection do
         index = rand(len)  # small array size that will be over-written around 5 times
         old_value = 'foo'
         new_value = 'bar'
-        collection.store_at(index, old_value)
-        collection.store_at(index, new_value)
+        collection.store_at(old_value, index)
+        collection.store_at(new_value, index)
         expect(collection.at(index)).to eq(new_value)
       end
-    end
-
-    it 'can resize the length' do
-      collection.store_at(5, 'foo')
-      collection.length = 8
-      expect(collection.length).to eq(8)
     end
   end
 
@@ -142,16 +142,16 @@ describe Collection do
       Collection::INDEXING_BASE.upto(13) do |n|
         some_value = 'foo #' + n.to_s
         str += ', ' unless str == ''
-        str += "\"#{some_value}\""
-        collection.store_at(n, some_value)
+        str += some_value
+        collection.store_at(some_value, n)
       end
       expect(collection.to_s).to eq('[' + str + ']')
     end
 
     it 'has a specific string representation as a string when inserting # items < length' do
-      collection.store_at(2, 'two')
-      collection.store_at(4, 'four')
-      expect(collection.to_s).to eq('[nil, nil, "two", nil, "four"]')
+      collection.store_at('two', 2)
+      collection.store_at('four', 4)
+      expect(collection.to_s).to eq('[nil, nil, two, nil, four]')
     end
 
     it 'can find the length of the array when inserting randomly' do
@@ -161,7 +161,7 @@ describe Collection do
         max_n = n if n > max_n  # determine the max value for testing
 
         some_value = 'foo #' + n.to_s
-        collection.store_at(n, some_value)
+        collection.store_at(some_value, n)
       end
       expect(collection.length).to be(max_n + 1 - Collection::INDEXING_BASE)
     end
@@ -173,7 +173,7 @@ describe Collection do
       Collection::INDEXING_BASE.upto(3) do |n|
         some_value = 'foo #' + n.to_s
         values << some_value  # to test each iterator
-        collection.store_at(n, some_value)
+        collection.store_at(some_value, n)
       end
       list = []
       collection.each { |element| list << element }
@@ -182,10 +182,22 @@ describe Collection do
 
     it 'sequences through all indexes' do
       max_index = 7
-      collection.store_at(max_index, 'foo')
+      collection.store_at('foo', max_index)
       list = []
       collection.each_index { |idx| list << idx }
       expect(list).to contain_exactly(*(Collection::INDEXING_BASE..max_index))
+    end
+  end
+
+  context 'when storing different object types' do
+    it 'has the same values as those stored' do
+      elems = [:hello, 'abcde', 158, nil, [1,'b',3], 123.45]
+      elems.each_index do |idx|
+        collection.store_at(elems[idx], idx)
+      end
+      list = []
+      collection.each { |value| list << value }
+      expect(list).to contain_exactly(*elems)
     end
   end
 
